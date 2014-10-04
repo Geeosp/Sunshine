@@ -2,9 +2,11 @@ package com.example.android.sunshine.app;
 
 import android.app.Fragment;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -38,6 +40,7 @@ public class ForecastFragment extends Fragment {
     private final String LOG_TAG = FetchWeatherTask.class.getSimpleName();
     private ArrayAdapter<String> mForecastAdapter;
     private String LOCATION = "94043";
+
     public ForecastFragment() {
     }
 
@@ -61,10 +64,16 @@ public class ForecastFragment extends Fragment {
     }
 
     @Override
+    public void onStart() {
+        super.onStart();
+        refresh();
+    }
+
+    @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_main, container, false);
-        refresh();
+
         List<String> weekForecast = new ArrayList<String>();
         mForecastAdapter = new ArrayAdapter<String>(getActivity(), R.layout.list_item_forecast, R.id.list_item_forecast_textview, weekForecast);
         ListView listView = (ListView) rootView.findViewById(R.id.listView_forecast);
@@ -73,8 +82,9 @@ public class ForecastFragment extends Fragment {
             @Override
             public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
                 String forecast = mForecastAdapter.getItem(i);
-Intent intent = new Intent(getActivity(), DetailActivity.class).putExtra(Intent.EXTRA_TEXT, forecast);
-            startActivity(intent);}
+                Intent intent = new Intent(getActivity(), DetailActivity.class).putExtra(Intent.EXTRA_TEXT, forecast);
+                startActivity(intent);
+            }
         });
 
         return rootView;
@@ -82,7 +92,9 @@ Intent intent = new Intent(getActivity(), DetailActivity.class).putExtra(Intent.
 
     public void refresh() {
         FetchWeatherTask weatherTask = new FetchWeatherTask();
-        weatherTask.execute(LOCATION);
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(getActivity());
+        String location = prefs.getString(getString(R.string.pref_location_key), getString(R.string.pref_location_default));
+        weatherTask.execute(location);
     }
 
 
@@ -185,10 +197,25 @@ Intent intent = new Intent(getActivity(), DetailActivity.class).putExtra(Intent.
          * Prepare the weather high/lows for presentation.
          */
         private String formatHighLows(double high, double low) {
+            // Data is fetched in Celsius by default.
+// If user prefers to see in Fahrenheit, convert the values here.
+// We do this rather than fetching in Fahrenheit so that the user can
+// change this option without us having to re-fetch the data once
+// we start storing the values in a database.
+            SharedPreferences sharedPrefs =
+                    PreferenceManager.getDefaultSharedPreferences(getActivity());
+            String unitType = sharedPrefs.getString(
+                    getString(R.string.pref_units_key),
+                    getString(R.string.pref_units_metric));
+            if (unitType.equals(getString(R.string.pref_units_imperial))) {
+                high = (high * 1.8) + 32;
+                low = (low * 1.8) + 32;
+            } else if (!unitType.equals(getString(R.string.pref_units_metric))) {
+                Log.d(LOG_TAG, "Unit type not found: " + unitType);
+            }
 // For presentation, assume the user doesn't care about tenths of a degree.
             long roundedHigh = Math.round(high);
             long roundedLow = Math.round(low);
-
             String highLowStr = roundedHigh + "/" + roundedLow;
             return highLowStr;
         }
